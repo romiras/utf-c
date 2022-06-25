@@ -1,5 +1,15 @@
 package utfc
 
+import (
+	"bytes"
+	"io"
+)
+
+// Encoder implements StringWriter
+type Encoder struct {
+	w io.Writer
+}
+
 // All characters below this code point are considered Latin, so within this range the state of `offs` stays equal to 0
 const maxLatinCp = 0x02FF
 
@@ -94,17 +104,38 @@ func getAuxOffset(offs int) int {
 	return offs
 }
 
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{
+		w: w,
+	}
+}
+
 // Encode converts string to an UTF-C byte array
 func Encode(str string) []byte {
+	b := new(bytes.Buffer)
+
+	if _, err := NewEncoder(b).WriteString(str); err != nil {
+		return nil
+	}
+
+	return b.Bytes()
+}
+
+// WriteString writes string as an UTF-C
+func (enc *Encoder) WriteString(str string) (n int, err error) {
 	// `offs`, `auxOffs` and `is21Bit` describe the current state.
 	// `offs` is the start of the currently active window of Unicode codepoints.
 	// `auxOffs` allows encoding 64 codepoints of the auxiliary alphabet.
 	// `is21Bit` is true if we're in 21-bit mode (2-3 bytes per character).
+	size := 0
 	offs := 0
 	auxOffs := offsInitAux
 	is21Bit := false
-	buf := []byte{}
+
+	buf := make([]byte, 0, 6)
+
 	for _, ch := range str {
+		buf = buf[:0] // clear buffer
 		cp := int(ch)
 		// First, check if we can use 1-byte encoding via small 6-bit auxiliary alphabet
 		if auxOffs == 0 && inRanges(cp, rangesLatin) {
@@ -160,8 +191,15 @@ func Encode(str string) []byte {
 				is21Bit = false
 			}
 		}
+
+		n, err := enc.w.Write(buf)
+		if err != nil {
+			return size, err
+		}
+		size += n
 	}
-	return buf
+
+	return size, nil
 }
 
 // Decode converts UTF-C byte array to a string

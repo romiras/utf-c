@@ -66,11 +66,13 @@ func hexString(buf []byte) string {
 	return s
 }
 
+const MaxLength = 1000
+
 func TestUTFC(t *testing.T) {
 	for _, test := range testStrings {
 		name := test
-		if len(name) > 20 {
-			name = name[:20] + "…"
+		if len(name) > MaxLength {
+			name = name[:MaxLength] + "…"
 		}
 
 		t.Run(name, func(t *testing.T) {
