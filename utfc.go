@@ -10,6 +10,11 @@ type Encoder struct {
 	w io.Writer
 }
 
+type Decoder struct {
+	r      io.Reader
+	buffer *bytes.Buffer
+}
+
 // All characters below this code point are considered Latin, so within this range the state of `offs` stays equal to 0
 const maxLatinCp = 0x02FF
 
@@ -106,6 +111,8 @@ func getAuxOffset(offs int) int {
 
 func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
+		// buf *bufio.Writer
+		// buf: bufio.NewWriter(w),
 		w: w,
 	}
 }
@@ -119,6 +126,32 @@ func Encode(str string) []byte {
 	}
 
 	return b.Bytes()
+}
+
+func NewDecoder(rd io.Reader) *Decoder {
+	return &Decoder{
+		// buf *bufio.Reader
+		// buf: bufio.NewReader(rd),
+		r:      rd,
+		buffer: new(bytes.Buffer),
+	}
+}
+
+// Decode converts UTF-C byte array to a string
+func Decode(buf []byte) string {
+	r := bytes.NewReader(buf)
+	dec := NewDecoder(r)
+
+	// b := new(strings.Builder)
+	// _, err := io.Copy(b, dec.r)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// // dec.buffer.ReadFrom(r)
+
+	b := new(bytes.Buffer)
+	b.ReadFrom(dec.r)
+	return b.String()
 }
 
 // WriteString writes string as an UTF-C
@@ -202,8 +235,7 @@ func (enc *Encoder) WriteString(str string) (n int, err error) {
 	return size, nil
 }
 
-// Decode converts UTF-C byte array to a string
-func Decode(buf []byte) string {
+func (dec *Decoder) Read(buf []byte) (n int, err error) {
 	offs := 0
 	auxOffs := offsInitAux
 	is21Bit := false
@@ -251,5 +283,6 @@ func Decode(buf []byte) string {
 		}
 		str += string(rune(cp))
 	}
-	return str
+
+	return io.WriteString(dec.buffer, str)
 }
